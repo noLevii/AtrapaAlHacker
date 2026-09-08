@@ -1,828 +1,449 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-    />
-    <title>Atrapa al hacker</title>
-    <style>
-      /* ============================================================
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Atrapa al hacker</title>
+<style>
+  /* ============================================================
      PALETA — "cyber arcade": indigo profundo + rojo objetivo.
      Regla mental del jugador: "toca lo ROJO". Todo lo demás resta.
      ============================================================ */
-      :root {
-        --bg-0: #101028;
-        --bg-1: #1a1a3e;
-        --panel: #1d1d44;
-        --panel-empty: #171736;
-        --line: #2c2c5e;
-        --hacker: #ff3b6b; /* objetivo normal  */
-        --hacker-fuerte: #ff2b2b; /* objetivo doble tap */
-        --dev: #3ba7ff; /* NO tocar */
-        --consultor: #2fd980; /* NO tocar */
-        --usuario: #f5c542; /* NO tocar */
-        --ink: #ecebff;
-        --ink-dim: #9a9ad0;
-        --accent: #39e0e0; /* cian HUD */
-        --danger: #ff5470;
-        --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-        --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      }
+  :root{
+    --bg-0:#101028; --bg-1:#1a1a3e;
+    --panel:#1d1d44; --panel-empty:#171736; --line:#2c2c5e;
+    --hacker:#ff3b6b;      /* objetivo normal  */
+    --hacker-fuerte:#ff2b2b;/* objetivo doble tap */
+    --dev:#3ba7ff;         /* NO tocar */
+    --consultor:#2fd980;   /* NO tocar */
+    --usuario:#f5c542;     /* NO tocar */
+    --ink:#ecebff; --ink-dim:#9a9ad0;
+    --accent:#39e0e0;      /* cian HUD */
+    --danger:#ff5470;
+    --mono: ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans: system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
 
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-      html,
-      body {
-        height: 100%;
-      }
-      body {
-        font-family: var(--sans);
-        color: var(--ink);
-        background: radial-gradient(
-          120% 90% at 50% 0%,
-          var(--bg-1),
-          var(--bg-0) 70%
-        );
-        -webkit-user-select: none;
-        user-select: none;
-        -webkit-touch-callout: none;
-        -webkit-tap-highlight-color: transparent;
-        overflow: hidden;
-      }
-      #app {
-        height: 100dvh;
-        max-width: 520px;
-        margin: 0 auto;
-        display: flex;
-        flex-direction: column;
-        padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom);
-      }
+  *{box-sizing:border-box; margin:0; padding:0}
+  /* iOS: matar el doble-tap-zoom en toda el área jugable */
+  html,body,#app,.board,.slot,.overlay,.char,.btn{touch-action:manipulation}
+  html,body{height:100%}
+  body{
+    font-family:var(--sans); color:var(--ink);
+    background:radial-gradient(120% 90% at 50% 0%, var(--bg-1), var(--bg-0) 70%);
+    -webkit-user-select:none; user-select:none;
+    -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent;
+    overflow:hidden;
+  }
+  #app{
+    height:100dvh; max-width:520px; margin:0 auto;
+    display:flex; flex-direction:column;
+    padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);
+  }
 
-      /* ---------- HUD ---------- */
-      .hud {
-        padding: 14px 4px 10px;
-        flex: 0 0 auto;
-      }
-      .hud-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        gap: 12px;
-      }
-      .stat-label {
-        font-size: 11px;
-        letter-spacing: 0.14em;
-        color: var(--ink-dim);
-        font-weight: 700;
-      }
-      .stat-val {
-        font-family: var(--mono);
-        font-weight: 700;
-        line-height: 1;
-        font-variant-numeric: tabular-nums;
-      }
-      #score {
-        font-size: 38px;
-        color: var(--ink);
-      }
-      #timer {
-        font-size: 38px;
-        color: var(--accent);
-      }
-      .timer-wrap {
-        text-align: right;
-      }
-      #timer.urgent {
-        color: var(--danger);
-        animation: pulse 0.5s ease-in-out infinite;
-      }
-      @keyframes pulse {
-        50% {
-          opacity: 0.45;
-        }
-      }
+  /* ---------- HUD ---------- */
+  .hud{padding:14px 4px 10px; flex:0 0 auto}
+  .hud-row{display:flex; justify-content:space-between; align-items:baseline; gap:12px}
+  .stat-label{font-size:11px; letter-spacing:.14em; color:var(--ink-dim); font-weight:700}
+  .stat-val{font-family:var(--mono); font-weight:700; line-height:1;
+            font-variant-numeric:tabular-nums}
+  #score{font-size:38px; color:var(--ink)}
+  #timer{font-size:38px; color:var(--accent)}
+  .timer-wrap{text-align:right}
+  #timer.urgent{color:var(--danger); animation:pulse .5s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.45}}
 
-      .bar {
-        margin-top: 12px;
-        height: 12px;
-        border-radius: 99px;
-        background: var(--panel-empty);
-        border: 1px solid var(--line);
-        overflow: hidden;
-      }
-      .bar > i {
-        display: block;
-        height: 100%;
-        width: 0%;
-        background: var(--danger);
-        transition:
-          width 0.18s ease,
-          background 0.3s;
-      }
-      .bar-caption {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 6px;
-        font-size: 12px;
-        color: var(--ink-dim);
-      }
-      .bar-caption b {
-        font-family: var(--mono);
-        color: var(--ink);
-      }
+  .bar{margin-top:12px; height:12px; border-radius:99px;
+       background:var(--panel-empty); border:1px solid var(--line); overflow:hidden}
+  .bar > i{display:block; height:100%; width:0%;
+           background:var(--danger); transition:width .18s ease, background .3s}
+  .bar-caption{display:flex; justify-content:space-between; margin-top:6px;
+               font-size:12px; color:var(--ink-dim)}
+  .bar-caption b{font-family:var(--mono); color:var(--ink)}
 
-      /* ---------- Tablero ---------- */
-      .board {
-        flex: 1 1 auto;
-        display: grid;
-        gap: 10px;
-        grid-template-columns: repeat(3, 1fr);
-        grid-template-rows: repeat(4, 1fr);
-        padding: 8px 0 14px;
-        min-height: 0;
-      }
-      .slot {
-        position: relative;
-        border-radius: 18px;
-        background: var(--panel-empty);
-        box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.45);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .char {
-        position: absolute;
-        inset: 6%;
-        border-radius: 16px;
-        touch-action: manipulation;
-        cursor: pointer;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 2px;
-        font-weight: 800;
-        color: #0c0c22;
-        box-shadow:
-          0 6px 0 rgba(0, 0, 0, 0.25),
-          inset 0 2px 6px rgba(255, 255, 255, 0.25);
-        animation: pop-in 0.12s ease-out;
-      }
-      .char .face {
-        font-size: min(9vw, 42px);
-        line-height: 1;
-        filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.3));
-      }
-      .char .name {
-        font-size: 11px;
-        letter-spacing: 0.02em;
-        opacity: 0.85;
-      }
-      .char.out {
-        animation: pop-out 0.14s ease-in forwards;
-      }
-      @keyframes pop-in {
-        from {
-          transform: scale(0.2);
-          opacity: 0;
-        }
-        to {
-          transform: scale(1);
-          opacity: 1;
-        }
-      }
-      @keyframes pop-out {
-        to {
-          transform: scale(0.2);
-          opacity: 0;
-        }
-      }
+  /* ---------- Tablero ---------- */
+  .board{
+    flex:1 1 auto; display:grid; gap:10px;
+    grid-template-columns:repeat(3,1fr);
+    grid-template-rows:repeat(4,1fr);
+    padding:8px 0 14px; min-height:0;
+  }
+  .slot{
+    position:relative; border-radius:18px;
+    background:var(--panel-empty);
+    box-shadow:inset 0 2px 10px rgba(0,0,0,.45);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .char{
+    position:absolute; inset:6%;
+    border-radius:16px; touch-action:manipulation; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:2px; font-weight:800; color:#0c0c22;
+    box-shadow:0 6px 0 rgba(0,0,0,.25), inset 0 2px 6px rgba(255,255,255,.25);
+    animation:pop-in .12s ease-out;
+  }
+  .char .face{font-size:min(9vw,42px); line-height:1;
+              filter:drop-shadow(0 1px 0 rgba(0,0,0,.3))}
+  .char .name{font-size:11px; letter-spacing:.02em; opacity:.85}
+  .char.out{animation:pop-out .14s ease-in forwards}
+  @keyframes pop-in{from{transform:scale(.2); opacity:0}to{transform:scale(1); opacity:1}}
+  @keyframes pop-out{to{transform:scale(.2); opacity:0}}
 
-      .char.hacker {
-        background: var(--hacker);
-      }
-      .char.fuerte {
-        background: var(--hacker-fuerte);
-        box-shadow:
-          0 6px 0 rgba(0, 0, 0, 0.3),
-          inset 0 0 0 3px rgba(0, 0, 0, 0.35),
-          0 0 18px rgba(255, 43, 43, 0.5);
-      }
-      .char.dev {
-        background: var(--dev);
-      }
-      .char.consultor {
-        background: var(--consultor);
-      }
-      .char.usuario {
-        background: var(--usuario);
-      }
+  .char.hacker{background:var(--hacker)}
+  .char.fuerte{background:var(--hacker-fuerte); box-shadow:0 6px 0 rgba(0,0,0,.3),
+               inset 0 0 0 3px rgba(0,0,0,.35), 0 0 18px rgba(255,43,43,.5)}
+  .char.dev{background:var(--dev)}
+  .char.consultor{background:var(--consultor)}
+  .char.usuario{background:var(--usuario)}
 
-      .hp {
-        display: flex;
-        gap: 4px;
-        margin-top: 2px;
-      }
-      .hp i {
-        width: 8px;
-        height: 8px;
-        border-radius: 99px;
-        background: #0c0c22;
-        opacity: 0.85;
-      }
-      .hp i.gone {
-        opacity: 0.15;
-      }
-      .char.hit {
-        animation: shake 0.12s;
-      }
-      @keyframes shake {
-        25% {
-          transform: translateX(-3px);
-        }
-        75% {
-          transform: translateX(3px);
-        }
-      }
+  .hp{display:flex; gap:4px; margin-top:2px}
+  .hp i{width:8px; height:8px; border-radius:99px; background:#0c0c22; opacity:.85}
+  .hp i.gone{opacity:.15}
+  .char.hit{animation:shake .12s}
+  @keyframes shake{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
 
-      /* burbuja de puntos flotante */
-      .float {
-        position: absolute;
-        z-index: 5;
-        font-family: var(--mono);
-        font-weight: 800;
-        font-size: 20px;
-        pointer-events: none;
-        animation: rise 0.6s ease-out forwards;
-      }
-      .float.plus {
-        color: #bfffe6;
-      }
-      .float.minus {
-        color: var(--danger);
-      }
-      @keyframes rise {
-        to {
-          transform: translateY(-34px);
-          opacity: 0;
-        }
-      }
+  /* burbuja de puntos flotante */
+  .float{position:absolute; z-index:5; font-family:var(--mono); font-weight:800;
+         font-size:20px; pointer-events:none; animation:rise .6s ease-out forwards}
+  .float.plus{color:#bfffe6} .float.minus{color:var(--danger)}
+  @keyframes rise{to{transform:translateY(-34px); opacity:0}}
 
-      /* ---------- Overlays ---------- */
-      .overlay {
-        position: fixed;
-        inset: 0;
-        z-index: 20;
-        background: radial-gradient(
-          120% 90% at 50% 0%,
-          rgba(26, 26, 62, 0.96),
-          rgba(16, 16, 40, 0.98)
-        );
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        padding: 28px;
-        gap: 18px;
-      }
-      .overlay.hidden {
-        display: none;
-      }
-      .title {
-        font-size: clamp(30px, 9vw, 46px);
-        font-weight: 900;
-        line-height: 1;
-        letter-spacing: -0.01em;
-      }
-      .title .r {
-        color: var(--hacker);
-      }
-      .lede {
-        color: var(--ink-dim);
-        max-width: 340px;
-        line-height: 1.5;
-        font-size: 15px;
-      }
-      .legend {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px 14px;
-        max-width: 340px;
-        width: 100%;
-        font-size: 14px;
-        text-align: left;
-      }
-      .legend .k {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .dot {
-        width: 14px;
-        height: 14px;
-        border-radius: 5px;
-        flex: 0 0 auto;
-      }
-      .btn {
-        margin-top: 6px;
-        border: 0;
-        cursor: pointer;
-        font-family: var(--sans);
-        font-weight: 800;
-        font-size: 19px;
-        color: #0c0c22;
-        background: var(--accent);
-        padding: 15px 40px;
-        border-radius: 14px;
-        box-shadow: 0 5px 0 #1f9c9c;
-        touch-action: manipulation;
-      }
-      .btn:active {
-        transform: translateY(3px);
-        box-shadow: 0 2px 0 #1f9c9c;
-      }
-      .result-score {
-        font-family: var(--mono);
-        font-size: 64px;
-        font-weight: 800;
-        line-height: 1;
-      }
-      .verdict {
-        font-size: 26px;
-        font-weight: 900;
-      }
-      .verdict.win {
-        color: var(--consultor);
-      }
-      .verdict.lose {
-        color: var(--hacker);
-      }
-      .gap {
-        color: var(--ink-dim);
-        font-size: 15px;
-      }
-      .best {
-        color: var(--accent);
-        font-family: var(--mono);
-        font-size: 14px;
-      }
+  /* ---------- Overlays ---------- */
+  .overlay{position:fixed; inset:0; z-index:20;
+    background:radial-gradient(120% 90% at 50% 0%, rgba(26,26,62,.96), rgba(16,16,40,.98));
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:28px; gap:18px}
+  .overlay.hidden{display:none}
+  .title{font-size:clamp(30px,9vw,46px); font-weight:900; line-height:1;
+         letter-spacing:-.01em}
+  .title .r{color:var(--hacker)}
+  .lede{color:var(--ink-dim); max-width:340px; line-height:1.5; font-size:15px}
+  .legend{display:grid; grid-template-columns:1fr 1fr; gap:8px 14px;
+          max-width:340px; width:100%; font-size:14px; text-align:left}
+  .legend .k{display:flex; align-items:center; gap:8px}
+  .dot{width:14px; height:14px; border-radius:5px; flex:0 0 auto}
+  .btn{margin-top:6px; border:0; cursor:pointer; font-family:var(--sans);
+       font-weight:800; font-size:19px; color:#0c0c22;
+       background:var(--accent); padding:15px 40px; border-radius:14px;
+       box-shadow:0 5px 0 #1f9c9c; touch-action:manipulation}
+  .btn:active{transform:translateY(3px); box-shadow:0 2px 0 #1f9c9c}
+  .result-score{font-family:var(--mono); font-size:64px; font-weight:800; line-height:1}
+  .verdict{font-size:26px; font-weight:900}
+  .verdict.win{color:var(--consultor)} .verdict.lose{color:var(--hacker)}
+  .gap{color:var(--ink-dim); font-size:15px}
+  .best{color:var(--accent); font-family:var(--mono); font-size:14px}
 
-      @media (prefers-reduced-motion: reduce) {
-        * {
-          animation-duration: 0.001s !important;
-        }
-        #timer.urgent {
-          animation: none;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <div id="app">
-      <div class="hud">
-        <div class="hud-row">
-          <div>
-            <div class="stat-label">PUNTOS</div>
-            <div id="score" class="stat-val">0</div>
-          </div>
-          <div class="timer-wrap">
-            <div class="stat-label">TIEMPO</div>
-            <div id="timer" class="stat-val">0:40</div>
-          </div>
-        </div>
-        <div class="bar"><i id="progress"></i></div>
-        <div class="bar-caption">
-          <span>meta <b id="goal">460</b></span
-          ><span id="pct">0%</span>
-        </div>
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001s !important}
+    #timer.urgent{animation:none}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="hud">
+    <div class="hud-row">
+      <div>
+        <div class="stat-label">PUNTOS</div>
+        <div id="score" class="stat-val">0</div>
       </div>
-
-      <div id="board" class="board"></div>
-    </div>
-
-    <!-- Pantalla inicial -->
-    <div id="startScreen" class="overlay">
-      <h1 class="title">ATRAPA AL <span class="r">HACKER</span></h1>
-      <p class="lede">
-        Toca a los <b style="color: var(--hacker)">hackers</b> para sumar. El
-        <b style="color: var(--hacker-fuerte)">hacker blindado</b> necesita
-        doble toque y vale más. Si tocas a un aliado,
-        <b style="color: var(--danger)">pierdes puntos</b>.
-      </p>
-      <div class="legend">
-        <div class="k">
-          <span class="dot" style="background: var(--hacker)"></span>Hacker ·
-          toca
-        </div>
-        <div class="k">
-          <span class="dot" style="background: var(--hacker-fuerte)"></span
-          >Blindado · doble
-        </div>
-        <div class="k">
-          <span class="dot" style="background: var(--dev)"></span>Dev · no
-          toques
-        </div>
-        <div class="k">
-          <span class="dot" style="background: var(--consultor)"></span
-          >Consultor · no toques
-        </div>
-        <div class="k">
-          <span class="dot" style="background: var(--usuario)"></span>Usuario ·
-          no toques
-        </div>
-        <div class="k">
-          <span class="dot" style="background: var(--accent)"></span>Meta contra
-          reloj
-        </div>
+      <div class="timer-wrap">
+        <div class="stat-label">TIEMPO</div>
+        <div id="timer" class="stat-val">0:40</div>
       </div>
-      <button id="startBtn" class="btn">JUGAR</button>
     </div>
+    <div class="bar"><i id="progress"></i></div>
+    <div class="bar-caption"><span>meta <b id="goal">460</b></span><span id="pct">0%</span></div>
+  </div>
 
-    <!-- Pantalla final -->
-    <div id="endScreen" class="overlay hidden">
-      <div id="verdict" class="verdict"></div>
-      <div id="finalScore" class="result-score">0</div>
-      <div id="gap" class="gap"></div>
-      <div id="best" class="best"></div>
-      <button id="againBtn" class="btn">REINTENTAR</button>
-    </div>
+  <div id="board" class="board"></div>
+</div>
 
-    <script>
-      /* ================================================================
+<!-- Pantalla inicial -->
+<div id="startScreen" class="overlay">
+  <h1 class="title">ATRAPA AL <span class="r">HACKER</span></h1>
+  <p class="lede">Toca a los <b style="color:var(--hacker)">hackers</b> para sumar.
+     El <b style="color:var(--hacker-fuerte)">hacker blindado</b> necesita doble toque y vale más.
+     Si tocas a un aliado, <b style="color:var(--danger)">pierdes puntos</b>.</p>
+  <div class="legend">
+    <div class="k"><span class="dot" style="background:var(--hacker)"></span>Hacker · toca</div>
+    <div class="k"><span class="dot" style="background:var(--hacker-fuerte)"></span>Blindado · doble</div>
+    <div class="k"><span class="dot" style="background:var(--dev)"></span>Dev · no toques</div>
+    <div class="k"><span class="dot" style="background:var(--consultor)"></span>Consultor · no toques</div>
+    <div class="k"><span class="dot" style="background:var(--usuario)"></span>Usuario · no toques</div>
+    <div class="k"><span class="dot" style="background:var(--accent)"></span>Meta contra reloj</div>
+  </div>
+  <button id="startBtn" class="btn">JUGAR</button>
+</div>
+
+<!-- Pantalla final -->
+<div id="endScreen" class="overlay hidden">
+  <div id="verdict" class="verdict"></div>
+  <div id="finalScore" class="result-score">0</div>
+  <div id="gap" class="gap"></div>
+  <div id="best" class="best"></div>
+  <button id="againBtn" class="btn">REINTENTAR</button>
+</div>
+
+<script>
+/* ================================================================
    CONFIG — todas las palancas del juego en un solo lugar.
    Aquí es donde ajustas el "truco" de la casa (ver notas abajo).
    ================================================================ */
-      const CONFIG = {
-        duration: 40, // segundos de partida
-        targetScore: 460, // meta para GANAR
+const CONFIG = {
+  duration: 40,          // segundos de partida
+  targetScore: 460,      // meta para GANAR
 
-        points: {
-          hacker: 5, // hacker normal
-          fuerte: 25, // hacker blindado (doble tap)
-          penalty: -15, // castigo por tocar a un aliado
-          missPenalty: 0, // castigo si un hacker se va sin tocarlo (0 = solo pierdes la oportunidad)
-        },
+  points: {
+    hacker: 5,          // hacker normal
+    fuerte: 25,          // hacker blindado (doble tap)
+    penalty: -15,        // castigo por tocar a un aliado
+    missPenalty: 0       // castigo si un hacker se va sin tocarlo (0 = solo pierdes la oportunidad)
+  },
 
-        // Ritmo de aparición: se ACELERA con el tiempo (start -> min).
-        spawn: { startMs: 650, minMs: 300 },
-        // Cuánto vive cada personaje en pantalla (también se acorta).
-        life: { startMs: 1000, minMs: 500 },
-        fuerteLifeMult: 1.3, // el blindado vive un poco más (hay que tocarlo 2 veces)
+  // Ritmo de aparición: se ACELERA con el tiempo (start -> min).
+  spawn: { startMs: 650, minMs: 300 },
+  // Cuánto vive cada personaje en pantalla (también se acorta).
+  life:  { startMs: 1000, minMs: 500 },
+  fuerteLifeMult: 1.30,  // el blindado vive un poco más (hay que tocarlo 2 veces)
 
-        // Mezcla de personajes (pesos relativos, no tienen que sumar 100).
-        mix: { hacker: 40, fuerte: 10, dev: 16, consultor: 16, usuario: 16 },
+  // Mezcla de personajes (pesos relativos, no tienen que sumar 100).
+  mix: { hacker: 40, fuerte: 10, dev: 16, consultor: 16, usuario: 16 },
 
-        slots: 12, // celdas del tablero (3x4)
-        debug: false, // true = registra cada puntaje final en la consola
-      };
+  slots: 12,             // celdas del tablero (3x4)
+  debug: false           // true = registra cada puntaje final en la consola
+};
 
-      const CHARS = {
-        hacker: { face: "🥷", name: "Hacker", good: true },
-        fuerte: { face: "🥷", name: "Blindado", good: true, hp: 2 },
-        dev: { face: "👨‍💻", name: "Dev", good: false },
-        consultor: { face: "🕵️", name: "Consultor", good: false },
-        usuario: { face: "🧑", name: "Usuario", good: false },
-      };
+const CHARS = {
+  hacker:    { face:"🥷",  name:"Hacker",    good:true  },
+  fuerte:    { face:"🥷",  name:"Blindado",  good:true, hp:2 },
+  dev:       { face:"👨‍💻", name:"Dev",       good:false },
+  consultor: { face:"🕵️",  name:"Consultor", good:false },
+  usuario:   { face:"🧑",  name:"Usuario",   good:false }
+};
 
-      /* ---------------- Sonido (Web Audio, sin archivos) ----------------
+/* ---------------- Sonido (Web Audio, sin archivos) ----------------
    Se sintetiza en el navegador. Debe "despertarse" con un gesto del
    usuario: se inicializa al tocar JUGAR / REINTENTAR.               */
-      let audioCtx = null;
-      function initAudio() {
-        if (!audioCtx) {
-          try {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          } catch (e) {
-            audioCtx = null;
-          }
-        }
-        if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
-      }
-      function beep({
-        freq = 600,
-        type = "square",
-        dur = 0.09,
-        vol = 0.25,
-        slideTo = null,
-        delay = 0,
-      }) {
-        if (!audioCtx) return;
-        const t0 = audioCtx.currentTime + delay;
-        const osc = audioCtx.createOscillator(),
-          g = audioCtx.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, t0);
-        if (slideTo)
-          osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
-        g.gain.setValueAtTime(vol, t0);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-        osc.connect(g).connect(audioCtx.destination);
-        osc.start(t0);
-        osc.stop(t0 + dur + 0.02);
-      }
-      const Sound = {
-        hacker() {
-          beep({
-            freq: 880,
-            type: "square",
-            dur: 0.08,
-            vol: 0.25,
-            slideTo: 1320,
-          });
-        },
-        fuertePartial() {
-          beep({ freq: 300, type: "sawtooth", dur: 0.07, vol: 0.22 });
-        },
-        fuerteKill() {
-          beep({
-            freq: 660,
-            type: "square",
-            dur: 0.1,
-            vol: 0.28,
-            slideTo: 1400,
-          });
-          beep({
-            freq: 990,
-            type: "square",
-            dur: 0.12,
-            vol: 0.22,
-            slideTo: 1760,
-            delay: 0.08,
-          });
-        },
-        error() {
-          beep({
-            freq: 180,
-            type: "sawtooth",
-            dur: 0.22,
-            vol: 0.3,
-            slideTo: 90,
-          });
-        },
-        win() {
-          [523, 659, 784, 1047].forEach((f, i) =>
-            beep({
-              freq: f,
-              type: "triangle",
-              dur: 0.18,
-              vol: 0.25,
-              delay: i * 0.1,
-            }),
-          );
-        },
-        lose() {
-          beep({
-            freq: 300,
-            type: "sawtooth",
-            dur: 0.5,
-            vol: 0.28,
-            slideTo: 110,
-          });
-        },
-      };
+let audioCtx=null;
+function initAudio(){
+  if(!audioCtx){
+    try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }
+    catch(e){ audioCtx=null; }
+  }
+  if(audioCtx && audioCtx.state==="suspended") audioCtx.resume();
+}
+function beep({freq=600,type="square",dur=0.09,vol=0.25,slideTo=null,delay=0}){
+  if(!audioCtx) return;
+  const t0=audioCtx.currentTime+delay;
+  const osc=audioCtx.createOscillator(), g=audioCtx.createGain();
+  osc.type=type; osc.frequency.setValueAtTime(freq,t0);
+  if(slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo,t0+dur);
+  g.gain.setValueAtTime(vol,t0);
+  g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+  osc.connect(g).connect(audioCtx.destination);
+  osc.start(t0); osc.stop(t0+dur+0.02);
+}
+const Sound={
+  hacker(){ beep({freq:880,type:"square",dur:0.08,vol:0.25,slideTo:1320}); },
+  fuertePartial(){ beep({freq:300,type:"sawtooth",dur:0.07,vol:0.22}); },
+  fuerteKill(){ beep({freq:660,type:"square",dur:0.10,vol:0.28,slideTo:1400});
+                beep({freq:990,type:"square",dur:0.12,vol:0.22,slideTo:1760,delay:0.08}); },
+  error(){ beep({freq:180,type:"sawtooth",dur:0.22,vol:0.30,slideTo:90}); },
+  win(){ [523,659,784,1047].forEach((f,i)=>beep({freq:f,type:"triangle",dur:0.18,vol:0.25,delay:i*0.10})); },
+  lose(){ beep({freq:300,type:"sawtooth",dur:0.50,vol:0.28,slideTo:110}); }
+};
 
-      /* ---------------- Estado y DOM ---------------- */
-      const $ = (s) => document.querySelector(s);
-      const board = $("#board"),
-        scoreEl = $("#score"),
-        timerEl = $("#timer"),
-        progEl = $("#progress"),
-        pctEl = $("#pct"),
-        goalEl = $("#goal");
-      const startScreen = $("#startScreen"),
-        endScreen = $("#endScreen");
+/* ---------------- Estado y DOM ---------------- */
+const $ = s => document.querySelector(s);
+const board=$("#board"), scoreEl=$("#score"), timerEl=$("#timer"),
+      progEl=$("#progress"), pctEl=$("#pct"), goalEl=$("#goal");
+const startScreen=$("#startScreen"), endScreen=$("#endScreen");
 
-      let state = { score: 0, timeLeft: 0, running: false, best: 0 };
-      let slotEls = [],
-        spawnTimer = null,
-        clockTimer = null;
+let state = { score:0, timeLeft:0, running:false, best:0 };
+let slotEls=[], spawnTimer=null, clockTimer=null;
 
-      goalEl.textContent = CONFIG.targetScore;
+goalEl.textContent = CONFIG.targetScore;
 
-      /* ---------------- Tablero ---------------- */
-      function buildBoard() {
-        board.innerHTML = "";
-        slotEls = [];
-        for (let i = 0; i < CONFIG.slots; i++) {
-          const s = document.createElement("div");
-          s.className = "slot";
-          s.dataset.i = i;
-          board.appendChild(s);
-          slotEls.push(s);
-        }
-      }
+/* ---------------- Tablero ---------------- */
+function buildBoard(){
+  board.innerHTML="";
+  slotEls=[];
+  for(let i=0;i<CONFIG.slots;i++){
+    const s=document.createElement("div");
+    s.className="slot"; s.dataset.i=i;
+    board.appendChild(s); slotEls.push(s);
+  }
+}
 
-      /* Interpolación lineal según el avance de la partida (0 -> 1) */
-      const progress = () => 1 - state.timeLeft / CONFIG.duration;
-      const lerp = (a, b, t) => a + (b - a) * t;
+/* Interpolación lineal según el avance de la partida (0 -> 1) */
+const progress = () => 1 - state.timeLeft / CONFIG.duration;
+const lerp = (a,b,t) => a + (b-a)*t;
 
-      /* Elige un tipo de personaje según los pesos de mix */
-      function pickType() {
-        const entries = Object.entries(CONFIG.mix);
-        const total = entries.reduce((a, [, w]) => a + w, 0);
-        let r = Math.random() * total;
-        for (const [type, w] of entries) {
-          if ((r -= w) <= 0) return type;
-        }
-        return "usuario";
-      }
+/* Elige un tipo de personaje según los pesos de mix */
+function pickType(){
+  const entries=Object.entries(CONFIG.mix);
+  const total=entries.reduce((a,[,w])=>a+w,0);
+  let r=Math.random()*total;
+  for(const [type,w] of entries){ if((r-=w)<=0) return type; }
+  return "usuario";
+}
 
-      function freeSlot() {
-        const free = slotEls.filter((s) => !s.firstChild);
-        return free.length
-          ? free[Math.floor(Math.random() * free.length)]
-          : null;
-      }
+function freeSlot(){
+  const free=slotEls.filter(s=>!s.firstChild);
+  return free.length ? free[Math.floor(Math.random()*free.length)] : null;
+}
 
-      /* ---------------- Spawn ---------------- */
-      function spawn() {
-        const slot = freeSlot();
-        if (slot) {
-          const type = pickType(),
-            def = CHARS[type];
-          const el = document.createElement("div");
-          el.className = "char " + type;
-          el.dataset.type = type;
-          el.dataset.hp = def.hp || 1;
+/* ---------------- Spawn ---------------- */
+function spawn(){
+  const slot=freeSlot();
+  if(slot){
+    const type=pickType(), def=CHARS[type];
+    const el=document.createElement("div");
+    el.className="char "+type;
+    el.dataset.type=type;
+    el.dataset.hp = def.hp || 1;
 
-          let html = `<span class="face">${def.face}</span><span class="name">${def.name}</span>`;
-          if (def.hp) {
-            html += `<span class="hp">` + "<i></i>".repeat(def.hp) + `</span>`;
-          }
-          el.innerHTML = html;
-          slot.appendChild(el);
+    let html=`<span class="face">${def.face}</span><span class="name">${def.name}</span>`;
+    if(def.hp){
+      html+=`<span class="hp">`+ "<i></i>".repeat(def.hp) +`</span>`;
+    }
+    el.innerHTML=html;
+    slot.appendChild(el);
 
-          let life = lerp(CONFIG.life.startMs, CONFIG.life.minMs, progress());
-          if (type === "fuerte") life *= CONFIG.fuerteLifeMult;
-          el._timeout = setTimeout(
-            () => despawn(el, def.good && CONFIG.points.missPenalty),
-            life,
-          );
-        }
-        const interval = lerp(
-          CONFIG.spawn.startMs,
-          CONFIG.spawn.minMs,
-          progress(),
-        );
-        spawnTimer = setTimeout(spawn, interval);
-      }
+    let life=lerp(CONFIG.life.startMs, CONFIG.life.minMs, progress());
+    if(type==="fuerte") life*=CONFIG.fuerteLifeMult;
+    el._timeout=setTimeout(()=>despawn(el, def.good && CONFIG.points.missPenalty), life);
+  }
+  const interval=lerp(CONFIG.spawn.startMs, CONFIG.spawn.minMs, progress());
+  spawnTimer=setTimeout(spawn, interval);
+}
 
-      function despawn(el, missPenalty) {
-        if (!el || !el.parentNode) return;
-        clearTimeout(el._timeout);
-        if (missPenalty) addScore(missPenalty, el, false);
-        el.classList.add("out");
-        setTimeout(() => el.remove(), 140);
-      }
+function despawn(el, missPenalty){
+  if(!el || !el.parentNode) return;
+  clearTimeout(el._timeout);
+  if(missPenalty) addScore(missPenalty, el, false);
+  el.classList.add("out");
+  setTimeout(()=>el.remove(),140);
+}
 
-      /* ---------------- Interacción ---------------- */
-      board.addEventListener(
-        "pointerdown",
-        (e) => {
-          if (!state.running) return;
-          const el = e.target.closest(".char");
-          if (!el || el.classList.contains("out")) return;
-          e.preventDefault();
+/* ---------------- Interacción ---------------- */
+board.addEventListener("pointerdown", e=>{
+  if(!state.running) return;
+  const el=e.target.closest(".char");
+  if(!el || el.classList.contains("out")) return;
+  e.preventDefault();
 
-          const type = el.dataset.type,
-            def = CHARS[type];
+  const type=el.dataset.type, def=CHARS[type];
 
-          if (!def.good) {
-            // aliado -> castigo
-            Sound.error();
-            addScore(CONFIG.points.penalty, el, false);
-            despawn(el, 0);
-            return;
-          }
+  if(!def.good){                       // aliado -> castigo
+    Sound.error();
+    addScore(CONFIG.points.penalty, el, false);
+    despawn(el, 0);
+    return;
+  }
 
-          if (def.hp) {
-            // hacker blindado -> doble tap
-            let hp = parseInt(el.dataset.hp) - 1;
-            el.dataset.hp = hp;
-            const pips = el.querySelectorAll(".hp i");
-            if (pips[hp]) pips[hp].classList.add("gone");
-            if (hp > 0) {
-              Sound.fuertePartial();
-              el.classList.remove("hit");
-              void el.offsetWidth;
-              el.classList.add("hit");
-              return;
-            }
-            Sound.fuerteKill();
-            addScore(CONFIG.points.fuerte, el, true);
-            despawn(el, 0);
-          } else {
-            // hacker normal
-            Sound.hacker();
-            addScore(CONFIG.points.hacker, el, true);
-            despawn(el, 0);
-          }
-        },
-        { passive: false },
-      );
+  if(def.hp){                          // hacker blindado -> doble tap
+    let hp=parseInt(el.dataset.hp)-1;
+    el.dataset.hp=hp;
+    const pips=el.querySelectorAll(".hp i");
+    if(pips[hp]) pips[hp].classList.add("gone");
+    if(hp>0){ Sound.fuertePartial(); el.classList.remove("hit"); void el.offsetWidth; el.classList.add("hit"); return; }
+    Sound.fuerteKill();
+    addScore(CONFIG.points.fuerte, el, true);
+    despawn(el, 0);
+  }else{                               // hacker normal
+    Sound.hacker();
+    addScore(CONFIG.points.hacker, el, true);
+    despawn(el, 0);
+  }
+}, {passive:false});
 
-      function addScore(pts, el, plus) {
-        state.score += pts;
-        scoreEl.textContent = state.score;
-        floatText((pts > 0 ? "+" : "") + pts, el, plus);
-        updateProgress();
-      }
+function addScore(pts, el, plus){
+  state.score += pts;
+  scoreEl.textContent = state.score;
+  floatText((pts>0?"+":"")+pts, el, plus);
+  updateProgress();
+}
 
-      function floatText(txt, el, plus) {
-        const r = el.getBoundingClientRect();
-        const f = document.createElement("div");
-        f.className = "float " + (plus ? "plus" : "minus");
-        f.textContent = txt;
-        f.style.left = r.left + r.width / 2 - 14 + "px";
-        f.style.top = r.top + r.height / 2 - 14 + "px";
-        document.body.appendChild(f);
-        setTimeout(() => f.remove(), 600);
-      }
+function floatText(txt, el, plus){
+  const r=el.getBoundingClientRect();
+  const f=document.createElement("div");
+  f.className="float "+(plus?"plus":"minus");
+  f.textContent=txt;
+  f.style.left=(r.left+r.width/2-14)+"px";
+  f.style.top=(r.top+r.height/2-14)+"px";
+  document.body.appendChild(f);
+  setTimeout(()=>f.remove(),600);
+}
 
-      function updateProgress() {
-        const pct = Math.max(
-          0,
-          Math.min(100, (state.score / CONFIG.targetScore) * 100),
-        );
-        progEl.style.width = pct + "%";
-        pctEl.textContent = Math.round(pct) + "%";
-        // la barra pasa de rojo -> ámbar -> verde al acercarte a la meta
-        progEl.style.background =
-          pct >= 100
-            ? "var(--consultor)"
-            : pct >= 70
-              ? "var(--usuario)"
-              : "var(--danger)";
-      }
+function updateProgress(){
+  const pct=Math.max(0,Math.min(100, state.score/CONFIG.targetScore*100));
+  progEl.style.width=pct+"%";
+  pctEl.textContent=Math.round(pct)+"%";
+  // la barra pasa de rojo -> ámbar -> verde al acercarte a la meta
+  progEl.style.background = pct>=100 ? "var(--consultor)"
+                          : pct>=70  ? "var(--usuario)" : "var(--danger)";
+}
 
-      /* ---------------- Reloj y ciclo ---------------- */
-      function tick() {
-        state.timeLeft -= 0.1;
-        if (state.timeLeft <= 0) {
-          state.timeLeft = 0;
-          endGame();
-          return;
-        }
-        const s = Math.ceil(state.timeLeft);
-        timerEl.textContent = "0:" + String(s).padStart(2, "0");
-        timerEl.classList.toggle("urgent", s <= 10);
-      }
+/* ---------------- Reloj y ciclo ---------------- */
+function tick(){
+  state.timeLeft -= 0.1;
+  if(state.timeLeft<=0){ state.timeLeft=0; endGame(); return; }
+  const s=Math.ceil(state.timeLeft);
+  timerEl.textContent="0:"+String(s).padStart(2,"0");
+  timerEl.classList.toggle("urgent", s<=10);
+}
 
-      function startGame() {
-        initAudio();
-        state.score = 0;
-        state.timeLeft = CONFIG.duration;
-        state.running = true;
-        scoreEl.textContent = "0";
-        timerEl.classList.remove("urgent");
-        timerEl.textContent = "0:" + CONFIG.duration;
-        updateProgress();
-        buildBoard();
-        startScreen.classList.add("hidden");
-        endScreen.classList.add("hidden");
-        clearTimeout(spawnTimer);
-        clearInterval(clockTimer);
-        spawn();
-        clockTimer = setInterval(tick, 100);
-      }
+function startGame(){
+  initAudio();
+  state.score=0; state.timeLeft=CONFIG.duration; state.running=true;
+  scoreEl.textContent="0"; timerEl.classList.remove("urgent");
+  timerEl.textContent="0:"+CONFIG.duration;
+  updateProgress();
+  buildBoard();
+  startScreen.classList.add("hidden");
+  endScreen.classList.add("hidden");
+  clearTimeout(spawnTimer); clearInterval(clockTimer);
+  spawn();
+  clockTimer=setInterval(tick,100);
+}
 
-      function endGame() {
-        state.running = false;
-        clearTimeout(spawnTimer);
-        clearInterval(clockTimer);
-        slotEls.forEach((s) => {
-          if (s.firstChild) despawn(s.firstChild, 0);
-        });
+function endGame(){
+  state.running=false;
+  clearTimeout(spawnTimer); clearInterval(clockTimer);
+  slotEls.forEach(s=>{ if(s.firstChild) despawn(s.firstChild,0); });
 
-        const won = state.score >= CONFIG.targetScore;
-        won ? Sound.win() : Sound.lose();
-        state.best = Math.max(state.best, state.score);
-        if (CONFIG.debug)
-          console.log(
-            "Puntaje final:",
-            state.score,
-            won ? "(GANÓ)" : "(perdió)",
-          );
+  const won = state.score>=CONFIG.targetScore;
+  won ? Sound.win() : Sound.lose();
+  state.best=Math.max(state.best,state.score);
+  if(CONFIG.debug) console.log("Puntaje final:", state.score, won?"(GANÓ)":"(perdió)");
 
-        $("#verdict").textContent = won ? "¡GANASTE!" : "CASI…";
-        $("#verdict").className = "verdict " + (won ? "win" : "lose");
-        $("#finalScore").textContent = state.score;
-        $("#gap").textContent = won
-          ? `Superaste la meta de ${CONFIG.targetScore}`
-          : `Necesitabas ${CONFIG.targetScore} · te faltaron ${CONFIG.targetScore - state.score}`;
-        $("#best").textContent = "Mejor puntaje: " + state.best;
-        endScreen.classList.remove("hidden");
-      }
+  $("#verdict").textContent = won ? "¡GANASTE!" : "CASI…";
+  $("#verdict").className = "verdict "+(won?"win":"lose");
+  $("#finalScore").textContent = state.score;
+  $("#gap").textContent = won
+      ? `Superaste la meta de ${CONFIG.targetScore}`
+      : `Necesitabas ${CONFIG.targetScore} · te faltaron ${CONFIG.targetScore-state.score}`;
+  $("#best").textContent = "Mejor puntaje: "+state.best;
+  endScreen.classList.remove("hidden");
+}
 
-      $("#startBtn").addEventListener("click", startGame);
-      $("#againBtn").addEventListener("click", startGame);
-      buildBoard();
-    </script>
-  </body>
+$("#startBtn").addEventListener("click", startGame);
+$("#againBtn").addEventListener("click", startGame);
+
+/* ---------------- iOS: refuerzo anti-zoom ----------------
+   Safari en iPhone ignora user-scalable=no, así que además de
+   touch-action cancelamos el 2º toque rápido y el pinch.       */
+let lastTap=0;
+board.addEventListener("touchend", e=>{
+  const now=Date.now();
+  if(now-lastTap<=350) e.preventDefault();   // doble tap -> sin zoom (el puntaje ya se cuenta en pointerdown)
+  lastTap=now;
+}, {passive:false});
+document.addEventListener("gesturestart", e=>e.preventDefault()); // sin pinch-zoom
+
+buildBoard();
+</script>
+</body>
 </html>
