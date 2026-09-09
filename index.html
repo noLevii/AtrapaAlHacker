@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Atrapa al hacker">
 <title>Atrapa al hacker</title>
 <style>
   /* ============================================================
@@ -94,7 +98,7 @@
   }
   .char{
     position:absolute; inset:6%;
-    border-radius:16px; touch-action:manipulation; cursor:pointer;
+    border-radius:16px; cursor:pointer;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:2px; font-weight:800; color:#0c0c22;
     box-shadow:0 6px 0 rgba(0,0,0,.25), inset 0 2px 6px rgba(255,255,255,.25);
@@ -247,10 +251,10 @@ const CONFIG = {
   ceiling: { aligned: 500, blocked: 430 },
   fuerteChance: 0.18,    // de los objetivos-hacker, qué fracción son blindados
 
-  // Ritmo de aparición: se ACELERA con el tiempo (start -> min). Más ágil.
-  spawn: { startMs: 560, minMs: 260 },
+  // Ritmo de aparición: se ACELERA con el tiempo (start -> min). Ágil pero sin pasarse al final.
+  spawn: { startMs: 560, minMs: 360 },
   // Cuánto vive cada personaje en pantalla (también se acorta).
-  life:  { startMs: 880, minMs: 440 },
+  life:  { startMs: 880, minMs: 600 },
   fuerteLifeMult: 1.30,  // el blindado vive un poco más (hay que tocarlo 2 veces)
 
   slots: 12,             // celdas del tablero (3x4 retrato / 4x3 apaisado)
