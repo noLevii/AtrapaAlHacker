@@ -227,9 +227,9 @@ const CONFIG = {
   targetScore: 460,      // meta para GANAR
 
   points: {
-    hacker: 10,          // hacker normal (IGUAL en toda sesión: no delata alineación)
-    fuerte: 25,          // hacker blindado (doble tap)
-    penalty: -15,        // castigo por tocar a un aliado
+    hacker: 5,           // hacker normal (bajo -> salen MÁS hackers para llegar al techo)
+    fuerte: 15,          // hacker blindado (doble tap)
+    penalty: -8,         // castigo por tocar a un aliado (proporcional al nuevo puntaje)
     missPenalty: 0       // castigo si un hacker se va sin tocarlo (0 = solo pierdes la oportunidad)
   },
 
@@ -248,10 +248,10 @@ const CONFIG = {
   headStart: 0.08,       // presupuesto liberado al arranque; el resto se estira hasta
                          // el final -> siguen saliendo hackers hasta el último segundo
 
-  // Ritmo de aparición: se ACELERA con el tiempo (start -> min).
-  spawn: { startMs: 650, minMs: 300 },
+  // Ritmo de aparición: se ACELERA con el tiempo (start -> min). Más ágil.
+  spawn: { startMs: 560, minMs: 260 },
   // Cuánto vive cada personaje en pantalla (también se acorta).
-  life:  { startMs: 1000, minMs: 500 },
+  life:  { startMs: 880, minMs: 440 },
   fuerteLifeMult: 1.30,  // el blindado vive un poco más (hay que tocarlo 2 veces)
 
   slots: 12,             // celdas del tablero (3x4 retrato / 4x3 apaisado)
