@@ -245,7 +245,8 @@ const CONFIG = {
   //   aligned = por encima de la meta -> un buen jugador SÍ puede ganar.
   ceiling: { aligned: 500, blocked: 430 },
   fuerteChance: 0.18,    // de los objetivos-hacker, qué fracción son blindados
-  pacingSlack: 0.15,     // reparte los hackers en el tiempo (0 = muy parejo, +alto = más ráfagas)
+  headStart: 0.08,       // presupuesto liberado al arranque; el resto se estira hasta
+                         // el final -> siguen saliendo hackers hasta el último segundo
 
   // Ritmo de aparición: se ACELERA con el tiempo (start -> min).
   spawn: { startMs: 650, minMs: 300 },
@@ -329,7 +330,9 @@ const lerp = (a,b,t) => a + (b-a)*t;
    aliados de relleno. Así el máximo alcanzable = techo, salga lo que salga. */
 function nextType(){
   const ceil = state.ceiling;
-  const allowed = ceil * Math.min(1, progress() + CONFIG.pacingSlack);
+  // Presupuesto liberado hasta ahora: arranca con un pequeño head start y
+  // llega al techo JUSTO al final, para que haya hackers hasta el cierre.
+  const allowed = ceil * (CONFIG.headStart + (1 - CONFIG.headStart) * progress());
   const remaining = ceil - state.placed;
   if(state.placed < allowed){
     if(remaining >= CONFIG.points.fuerte && Math.random() < CONFIG.fuerteChance){
