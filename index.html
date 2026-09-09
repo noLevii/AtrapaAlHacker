@@ -25,8 +25,10 @@
   }
 
   *{box-sizing:border-box; margin:0; padding:0}
-  /* iOS: matar el doble-tap-zoom en toda el área jugable */
-  html,body,#app,.board,.slot,.overlay,.char,.btn{touch-action:manipulation}
+  /* iOS: sin zoom accidental. En el juego no permitimos ningún gesto
+     por defecto; en los overlays permitimos scroll pero sin doble-tap-zoom. */
+  #app, #app *{touch-action:none}
+  .overlay, .overlay *{touch-action:manipulation}
   html,body{height:100%}
   body{
     font-family:var(--sans); color:var(--ink);
@@ -63,10 +65,25 @@
 
   /* ---------- Tablero ---------- */
   .board{
-    flex:1 1 auto; display:grid; gap:10px;
+    /* alto realmente disponible (viewport - HUD - safe-areas) */
+    --avail-h: calc(100dvh - 140px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    display:grid; gap:clamp(8px,2vmin,16px);
     grid-template-columns:repeat(3,1fr);
     grid-template-rows:repeat(4,1fr);
-    padding:8px 0 14px; min-height:0;
+    aspect-ratio:3 / 4;                 /* retrato: 3x4, celdas ~cuadradas */
+    width:min(100%, calc(var(--avail-h) * 0.75));
+    margin:auto;                        /* centra en el espacio libre */
+    min-height:0;
+  }
+  /* Horizontal (iPad apaisado): 4x3 para aprovechar la pantalla */
+  @media (orientation: landscape){
+    #app{max-width:none}
+    .board{
+      grid-template-columns:repeat(4,1fr);
+      grid-template-rows:repeat(3,1fr);
+      aspect-ratio:4 / 3;
+      width:min(100%, calc(var(--avail-h) * 1.3333));
+    }
   }
   .slot{
     position:relative; border-radius:18px;
@@ -210,17 +227,25 @@ const CONFIG = {
   targetScore: 460,      // meta para GANAR
 
   points: {
-    hacker: 10,          // hacker en sesión ALINEADA (ganable)
-    hackerBlocked: 5,    // hacker en sesión NO alineada (ganar es casi imposible)
+    hacker: 10,          // hacker normal (IGUAL en toda sesión: no delata alineación)
     fuerte: 25,          // hacker blindado (doble tap)
     penalty: -15,        // castigo por tocar a un aliado
     missPenalty: 0       // castigo si un hacker se va sin tocarlo (0 = solo pierdes la oportunidad)
   },
 
-  // Casa: 1 de cada N sesiones queda "alineada". Solo en esa un buen
-  // jugador puede cruzar la meta; en el resto el techo no alcanza.
-  // >>> Para hacerlo de verdad seguro, esta decisión debería venir de un backend. <<<
+  // Casa: 1 de cada N sesiones queda "alineada" (ganable).
+  // >>> Para blindarlo de verdad, esta decisión debería venir de un backend. <<<
   alignRate: 40,
+
+  // TECHO de puntos que la casa "pone sobre la mesa" por sesión = máximo
+  // alcanzable si tocas TODO. La aparición sigue siendo aleatoria, pero se
+  // garantiza que salgan los hackers necesarios para llegar exactamente aquí:
+  //   blocked = por debajo de la meta (460) pero CERCA -> el buen jugador
+  //             se queda ~430 y parece "casi", no un fraude por falta de hackers.
+  //   aligned = por encima de la meta -> un buen jugador SÍ puede ganar.
+  ceiling: { aligned: 500, blocked: 430 },
+  fuerteChance: 0.18,    // de los objetivos-hacker, qué fracción son blindados
+  pacingSlack: 0.15,     // reparte los hackers en el tiempo (0 = muy parejo, +alto = más ráfagas)
 
   // Ritmo de aparición: se ACELERA con el tiempo (start -> min).
   spawn: { startMs: 650, minMs: 300 },
@@ -228,11 +253,8 @@ const CONFIG = {
   life:  { startMs: 1000, minMs: 500 },
   fuerteLifeMult: 1.30,  // el blindado vive un poco más (hay que tocarlo 2 veces)
 
-  // Mezcla de personajes (pesos relativos, no tienen que sumar 100).
-  mix: { hacker: 40, fuerte: 10, dev: 16, consultor: 16, usuario: 16 },
-
-  slots: 12,             // celdas del tablero (3x4)
-  debug: false           // true = registra cada puntaje final en la consola
+  slots: 12,             // celdas del tablero (3x4 retrato / 4x3 apaisado)
+  debug: false           // true = registra puntaje, sesión y techo en consola
 };
 
 const CHARS = {
@@ -281,7 +303,7 @@ const board=$("#board"), scoreEl=$("#score"), timerEl=$("#timer"),
       progEl=$("#progress"), pctEl=$("#pct"), goalEl=$("#goal");
 const startScreen=$("#startScreen"), endScreen=$("#endScreen");
 
-let state = { score:0, timeLeft:0, running:false, best:0, hackerPts:10 };
+let state = { score:0, timeLeft:0, running:false, best:0, ceiling:430, placed:0 };
 let session = { aligned:false };   // se decide al entrar al menú (rollAlignment)
 let slotEls=[], spawnTimer=null, clockTimer=null;
 
@@ -302,13 +324,23 @@ function buildBoard(){
 const progress = () => 1 - state.timeLeft / CONFIG.duration;
 const lerp = (a,b,t) => a + (b-a)*t;
 
-/* Elige un tipo de personaje según los pesos de mix */
-function pickType(){
-  const entries=Object.entries(CONFIG.mix);
-  const total=entries.reduce((a,[,w])=>a+w,0);
-  let r=Math.random()*total;
-  for(const [type,w] of entries){ if((r-=w)<=0) return type; }
-  return "usuario";
+/* Siguiente personaje con "presupuesto": coloca hackers/blindados hasta
+   sumar el techo de la sesión, repartidos en el tiempo; el resto son
+   aliados de relleno. Así el máximo alcanzable = techo, salga lo que salga. */
+function nextType(){
+  const ceil = state.ceiling;
+  const allowed = ceil * Math.min(1, progress() + CONFIG.pacingSlack);
+  const remaining = ceil - state.placed;
+  if(state.placed < allowed){
+    if(remaining >= CONFIG.points.fuerte && Math.random() < CONFIG.fuerteChance){
+      state.placed += CONFIG.points.fuerte; return "fuerte";
+    }
+    if(remaining >= CONFIG.points.hacker){
+      state.placed += CONFIG.points.hacker; return "hacker";
+    }
+  }
+  const fillers = ["dev","consultor","usuario"];
+  return fillers[Math.floor(Math.random()*fillers.length)];
 }
 
 function freeSlot(){
@@ -320,7 +352,7 @@ function freeSlot(){
 function spawn(){
   const slot=freeSlot();
   if(slot){
-    const type=pickType(), def=CHARS[type];
+    const type=nextType(), def=CHARS[type];
     const el=document.createElement("div");
     el.className="char "+type;
     el.dataset.type=type;
@@ -376,7 +408,7 @@ board.addEventListener("pointerdown", e=>{
     despawn(el, 0);
   }else{                               // hacker normal
     Sound.hacker();
-    addScore(state.hackerPts, el, true);
+    addScore(CONFIG.points.hacker, el, true);
     despawn(el, 0);
   }
 }, {passive:false});
@@ -384,15 +416,15 @@ board.addEventListener("pointerdown", e=>{
 function addScore(pts, el, plus){
   state.score += pts;
   scoreEl.textContent = state.score;
-  floatText(el, plus);           // símbolo sin número: oculta cuánto vale cada golpe
+  floatText((pts>0?"+":"")+pts, el, plus);
   updateProgress();
 }
 
-function floatText(el, plus){
+function floatText(txt, el, plus){
   const r=el.getBoundingClientRect();
   const f=document.createElement("div");
   f.className="float "+(plus?"plus":"minus");
-  f.textContent = plus ? "+" : "✕";
+  f.textContent=txt;
   f.style.left=(r.left+r.width/2-14)+"px";
   f.style.top=(r.top+r.height/2-14)+"px";
   document.body.appendChild(f);
@@ -437,8 +469,9 @@ function enterMenu(){
 function startGame(){
   initAudio();
   state.score=0; state.timeLeft=CONFIG.duration; state.running=true;
-  // Puntos efectivos del hacker según si la sesión está alineada
-  state.hackerPts = session.aligned ? CONFIG.points.hacker : CONFIG.points.hackerBlocked;
+  // Techo de la sesión (máximo alcanzable) y presupuesto ya colocado
+  state.ceiling = session.aligned ? CONFIG.ceiling.aligned : CONFIG.ceiling.blocked;
+  state.placed = 0;
   scoreEl.textContent="0"; timerEl.classList.remove("urgent");
   timerEl.textContent="0:"+CONFIG.duration;
   updateProgress();
@@ -459,7 +492,8 @@ function endGame(){
   won ? Sound.win() : Sound.lose();
   state.best=Math.max(state.best,state.score);
   if(CONFIG.debug) console.log("Puntaje final:", state.score, won?"(GANÓ)":"(perdió)",
-                              "· sesión", session.aligned?"ALINEADA":"bloqueada");
+                              "· sesión", session.aligned?"ALINEADA":"bloqueada",
+                              "· techo", state.ceiling, "· colocado", state.placed);
 
   $("#verdict").textContent = won ? "¡GANASTE!" : "CASI…";
   $("#verdict").className = "verdict "+(won?"win":"lose");
@@ -493,16 +527,18 @@ titleEl.addEventListener("pointerdown", ()=>{
 ["pointerup","pointerleave","pointercancel"].forEach(ev=>
   titleEl.addEventListener(ev, ()=>clearTimeout(holdTimer)));
 
-/* ---------------- iOS: refuerzo anti-zoom ----------------
-   Safari en iPhone ignora user-scalable=no, así que además de
-   touch-action cancelamos el 2º toque rápido y el pinch.       */
-let lastTap=0;
-board.addEventListener("touchend", e=>{
+/* ---------------- iOS: eliminar zoom accidental ----------------
+   touch-action ya bloquea los gestos dentro del juego; aquí, por si
+   un gesto arranca fuera del área jugable, reforzamos a nivel
+   documento el pinch (gesture*) y el doble-tap.                    */
+["gesturestart","gesturechange","gestureend"].forEach(ev=>
+  document.addEventListener(ev, e=>e.preventDefault()));
+let lastTouchEnd=0;
+document.addEventListener("touchend", e=>{
   const now=Date.now();
-  if(now-lastTap<=350) e.preventDefault();   // doble tap -> sin zoom (el puntaje ya se cuenta en pointerdown)
-  lastTap=now;
+  if(now-lastTouchEnd<=350) e.preventDefault();   // doble-tap -> sin zoom
+  lastTouchEnd=now;
 }, {passive:false});
-document.addEventListener("gesturestart", e=>e.preventDefault()); // sin pinch-zoom
 
 buildBoard();
 rollAlignment();   // alinea (o no) la primera sesión del menú
