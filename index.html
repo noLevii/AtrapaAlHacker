@@ -541,19 +541,47 @@ titleEl.addEventListener("pointerdown", ()=>{
 ["pointerup","pointerleave","pointercancel"].forEach(ev=>
   titleEl.addEventListener(ev, ()=>clearTimeout(holdTimer)));
 
+/* ---- Atajo del operador: FORZAR sesión ganadora --------------------
+   En el menú, 4 toques rápidos (<1.2s) en la ESQUINA SUPERIOR IZQUIERDA
+   fuerzan que la próxima partida sea ganable. Confirma con un ★ verde
+   arriba a la derecha. Útil si se "gastó" una alineación (p.ej. tras
+   una recarga). Solo dura para la siguiente partida; al volver al menú
+   se vuelve a sortear al azar.                                        */
+const forceZone=document.createElement("div");
+forceZone.style.cssText="position:fixed;top:0;left:0;width:70px;height:70px;z-index:40";
+startScreen.appendChild(forceZone);
+let forceTaps=0, forceTimer=null;
+forceZone.addEventListener("pointerdown", ()=>{
+  forceTaps++;
+  clearTimeout(forceTimer);
+  forceTimer=setTimeout(()=>{ forceTaps=0; }, 1200);
+  if(forceTaps>=4){
+    forceTaps=0;
+    session.aligned=true;                 // la próxima partida es ganable
+    tellEl.textContent="★";
+    tellEl.style.color="var(--consultor)";
+    tellEl.classList.add("show");
+    setTimeout(()=>tellEl.classList.remove("show"), 1300);
+  }
+});
+
 /* ---------------- iOS: eliminar zoom accidental ----------------
-   touch-action ya bloquea los gestos dentro del juego; aquí, por si
-   un gesto arranca fuera del área jugable, reforzamos a nivel
-   documento el pinch (gesture*) y el doble-tap.                    */
+   touch-action bloquea los gestos, pero reforzamos a nivel documento
+   para patrones erráticos (sostenido + doble, dos dedos, etc.).      */
 ["gesturestart","gesturechange","gestureend"].forEach(ev=>
-  document.addEventListener(ev, e=>e.preventDefault()));
-document.addEventListener("touchmove", e=>{         // pellizco (2+ dedos) -> sin zoom
+  document.addEventListener(ev, e=>e.preventDefault(), {passive:false}));
+// Pellizco (2+ dedos): cancelar DESDE QUE EMPIEZA y durante el movimiento.
+document.addEventListener("touchstart", e=>{
   if(e.touches.length>1) e.preventDefault();
 }, {passive:false});
+document.addEventListener("touchmove", e=>{
+  if(e.touches.length>1) e.preventDefault();
+}, {passive:false});
+// Doble-tap (incluye el patrón torpe de novatos): cancelar el 2º toque.
 let lastTouchEnd=0;
 document.addEventListener("touchend", e=>{
   const now=Date.now();
-  if(now-lastTouchEnd<=350) e.preventDefault();      // doble-tap -> sin zoom
+  if(now-lastTouchEnd<=400) e.preventDefault();
   lastTouchEnd=now;
 }, {passive:false});
 
