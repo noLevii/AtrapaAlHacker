@@ -25,9 +25,10 @@
   }
 
   *{box-sizing:border-box; margin:0; padding:0}
-  /* iOS: sin zoom accidental. En el juego no permitimos ningún gesto
-     por defecto; en los overlays permitimos scroll pero sin doble-tap-zoom. */
-  #app, #app *{touch-action:none}
+  /* iOS: sin zoom accidental. Ningún gesto por defecto en TODA la página
+     (incluye body y sus márgenes); en overlays permitimos scroll pero
+     sin doble-tap-zoom. */
+  *{touch-action:none}
   .overlay, .overlay *{touch-action:manipulation}
   html,body{height:100%}
   body{
@@ -245,8 +246,6 @@ const CONFIG = {
   //   aligned = por encima de la meta -> un buen jugador SÍ puede ganar.
   ceiling: { aligned: 500, blocked: 430 },
   fuerteChance: 0.18,    // de los objetivos-hacker, qué fracción son blindados
-  headStart: 0.08,       // presupuesto liberado al arranque; el resto se estira hasta
-                         // el final -> siguen saliendo hackers hasta el último segundo
 
   // Ritmo de aparición: se ACELERA con el tiempo (start -> min). Más ágil.
   spawn: { startMs: 560, minMs: 260 },
@@ -329,17 +328,25 @@ const lerp = (a,b,t) => a + (b-a)*t;
    sumar el techo de la sesión, repartidos en el tiempo; el resto son
    aliados de relleno. Así el máximo alcanzable = techo, salga lo que salga. */
 function nextType(){
-  const ceil = state.ceiling;
-  // Presupuesto liberado hasta ahora: arranca con un pequeño head start y
-  // llega al techo JUSTO al final, para que haya hackers hasta el cierre.
-  const allowed = ceil * (CONFIG.headStart + (1 - CONFIG.headStart) * progress());
-  const remaining = ceil - state.placed;
-  if(state.placed < allowed){
-    if(remaining >= CONFIG.points.fuerte && Math.random() < CONFIG.fuerteChance){
-      state.placed += CONFIG.points.fuerte; return "fuerte";
-    }
-    if(remaining >= CONFIG.points.hacker){
-      state.placed += CONFIG.points.hacker; return "hacker";
+  const remaining = state.ceiling - state.placed;
+  if(remaining > 0){
+    // Reparte el presupuesto restante de forma PAREJA entre los spawns que
+    // faltan. Como el ritmo se acelera, estimamos los spawns restantes con el
+    // intervalo actual y el mínimo -> la proporción de hackers se mantiene
+    // constante de principio a fin (siguen saliendo al final, más rápido).
+    const curInt   = lerp(CONFIG.spawn.startMs, CONFIG.spawn.minMs, progress());
+    const avgRemInt = (curInt + CONFIG.spawn.minMs) / 2;
+    const estRemSpawns = Math.max(1, (state.timeLeft * 1000) / avgRemInt);
+    const avgVal = CONFIG.fuerteChance * CONFIG.points.fuerte
+                 + (1 - CONFIG.fuerteChance) * CONFIG.points.hacker;
+    const p = remaining / (estRemSpawns * avgVal);   // prob. de que este spawn sea hacker
+    if(Math.random() < p){
+      if(remaining >= CONFIG.points.fuerte && Math.random() < CONFIG.fuerteChance){
+        state.placed += CONFIG.points.fuerte; return "fuerte";
+      }
+      if(remaining >= CONFIG.points.hacker){
+        state.placed += CONFIG.points.hacker; return "hacker";
+      }
     }
   }
   const fillers = ["dev","consultor","usuario"];
@@ -536,10 +543,13 @@ titleEl.addEventListener("pointerdown", ()=>{
    documento el pinch (gesture*) y el doble-tap.                    */
 ["gesturestart","gesturechange","gestureend"].forEach(ev=>
   document.addEventListener(ev, e=>e.preventDefault()));
+document.addEventListener("touchmove", e=>{         // pellizco (2+ dedos) -> sin zoom
+  if(e.touches.length>1) e.preventDefault();
+}, {passive:false});
 let lastTouchEnd=0;
 document.addEventListener("touchend", e=>{
   const now=Date.now();
-  if(now-lastTouchEnd<=350) e.preventDefault();   // doble-tap -> sin zoom
+  if(now-lastTouchEnd<=350) e.preventDefault();      // doble-tap -> sin zoom
   lastTouchEnd=now;
 }, {passive:false});
 
