@@ -109,19 +109,33 @@
   @keyframes rise{to{transform:translateY(-34px); opacity:0}}
 
   /* ---------- Overlays ---------- */
-  .overlay{position:fixed; inset:0; z-index:20;
+  .overlay{position:fixed; inset:0; z-index:20; overflow-y:auto;
     background:radial-gradient(120% 90% at 50% 0%, rgba(26,26,62,.96), rgba(16,16,40,.98));
     display:flex; flex-direction:column; align-items:center; justify-content:center;
-    text-align:center; padding:28px; gap:18px}
+    text-align:center; padding:24px; gap:14px}
   .overlay.hidden{display:none}
   .title{font-size:clamp(30px,9vw,46px); font-weight:900; line-height:1;
          letter-spacing:-.01em}
   .title .r{color:var(--hacker)}
   .lede{color:var(--ink-dim); max-width:340px; line-height:1.5; font-size:15px}
-  .legend{display:grid; grid-template-columns:1fr 1fr; gap:8px 14px;
-          max-width:340px; width:100%; font-size:14px; text-align:left}
-  .legend .k{display:flex; align-items:center; gap:8px}
-  .dot{width:14px; height:14px; border-radius:5px; flex:0 0 auto}
+  .legend{display:grid; gap:10px; max-width:340px; width:100%;
+          grid-template-columns:repeat(2,1fr)}
+  .legend.legend-3{grid-template-columns:repeat(3,1fr)}
+  .chip{display:flex; flex-direction:column; align-items:center; gap:3px;
+        padding:10px 4px; border-radius:14px; color:#0c0c22; font-weight:800;
+        box-shadow:inset 0 2px 6px rgba(255,255,255,.25)}
+  .chip .face{font-size:28px; line-height:1}
+  .chip b{font-size:13px}
+  .chip small{font-weight:800; font-size:10.5px; letter-spacing:.03em; opacity:.85}
+  .chip.hacker{background:var(--hacker)}
+  .chip.fuerte{background:var(--hacker-fuerte); box-shadow:inset 0 0 0 3px rgba(0,0,0,.3)}
+  .chip.dev{background:var(--dev)}
+  .chip.consultor{background:var(--consultor)}
+  .chip.usuario{background:var(--usuario)}
+  /* Señal discreta para el operador (mantener pulsado el título) */
+  .tell{position:fixed; top:8px; right:12px; font-size:18px; line-height:1;
+        opacity:0; transition:opacity .18s; pointer-events:none; z-index:30}
+  .tell.show{opacity:.9}
   .btn{margin-top:6px; border:0; cursor:pointer; font-family:var(--sans);
        font-weight:800; font-size:19px; color:#0c0c22;
        background:var(--accent); padding:15px 40px; border-radius:14px;
@@ -161,17 +175,18 @@
 
 <!-- Pantalla inicial -->
 <div id="startScreen" class="overlay">
+  <div id="tell" class="tell"></div>
   <h1 class="title">ATRAPA AL <span class="r">HACKER</span></h1>
   <p class="lede">Toca a los <b style="color:var(--hacker)">hackers</b> para sumar.
-     El <b style="color:var(--hacker-fuerte)">hacker blindado</b> necesita doble toque y vale más.
-     Si tocas a un aliado, <b style="color:var(--danger)">pierdes puntos</b>.</p>
+     Los <b>aliados</b> restan. Llega a la <b style="color:var(--accent)">meta</b> antes de que acabe el tiempo.</p>
   <div class="legend">
-    <div class="k"><span class="dot" style="background:var(--hacker)"></span>Hacker · toca</div>
-    <div class="k"><span class="dot" style="background:var(--hacker-fuerte)"></span>Blindado · doble</div>
-    <div class="k"><span class="dot" style="background:var(--dev)"></span>Dev · no toques</div>
-    <div class="k"><span class="dot" style="background:var(--consultor)"></span>Consultor · no toques</div>
-    <div class="k"><span class="dot" style="background:var(--usuario)"></span>Usuario · no toques</div>
-    <div class="k"><span class="dot" style="background:var(--accent)"></span>Meta contra reloj</div>
+    <div class="chip hacker"><span class="face">🥷</span><b>Hacker</b><small>TÓCALO</small></div>
+    <div class="chip fuerte"><span class="face">🥷</span><b>Blindado</b><small>DOBLE TOQUE</small></div>
+  </div>
+  <div class="legend legend-3">
+    <div class="chip dev"><span class="face">👨‍💻</span><b>Dev</b><small>NO</small></div>
+    <div class="chip consultor"><span class="face">🕵️</span><b>Consultor</b><small>NO</small></div>
+    <div class="chip usuario"><span class="face">🧑</span><b>Usuario</b><small>NO</small></div>
   </div>
   <button id="startBtn" class="btn">JUGAR</button>
 </div>
@@ -182,7 +197,7 @@
   <div id="finalScore" class="result-score">0</div>
   <div id="gap" class="gap"></div>
   <div id="best" class="best"></div>
-  <button id="againBtn" class="btn">REINTENTAR</button>
+  <button id="againBtn" class="btn">VOLVER AL MENÚ</button>
 </div>
 
 <script>
@@ -195,11 +210,17 @@ const CONFIG = {
   targetScore: 460,      // meta para GANAR
 
   points: {
-    hacker: 5,          // hacker normal
+    hacker: 10,          // hacker en sesión ALINEADA (ganable)
+    hackerBlocked: 5,    // hacker en sesión NO alineada (ganar es casi imposible)
     fuerte: 25,          // hacker blindado (doble tap)
     penalty: -15,        // castigo por tocar a un aliado
     missPenalty: 0       // castigo si un hacker se va sin tocarlo (0 = solo pierdes la oportunidad)
   },
+
+  // Casa: 1 de cada N sesiones queda "alineada". Solo en esa un buen
+  // jugador puede cruzar la meta; en el resto el techo no alcanza.
+  // >>> Para hacerlo de verdad seguro, esta decisión debería venir de un backend. <<<
+  alignRate: 40,
 
   // Ritmo de aparición: se ACELERA con el tiempo (start -> min).
   spawn: { startMs: 650, minMs: 300 },
@@ -260,7 +281,8 @@ const board=$("#board"), scoreEl=$("#score"), timerEl=$("#timer"),
       progEl=$("#progress"), pctEl=$("#pct"), goalEl=$("#goal");
 const startScreen=$("#startScreen"), endScreen=$("#endScreen");
 
-let state = { score:0, timeLeft:0, running:false, best:0 };
+let state = { score:0, timeLeft:0, running:false, best:0, hackerPts:10 };
+let session = { aligned:false };   // se decide al entrar al menú (rollAlignment)
 let slotEls=[], spawnTimer=null, clockTimer=null;
 
 goalEl.textContent = CONFIG.targetScore;
@@ -354,7 +376,7 @@ board.addEventListener("pointerdown", e=>{
     despawn(el, 0);
   }else{                               // hacker normal
     Sound.hacker();
-    addScore(CONFIG.points.hacker, el, true);
+    addScore(state.hackerPts, el, true);
     despawn(el, 0);
   }
 }, {passive:false});
@@ -362,15 +384,15 @@ board.addEventListener("pointerdown", e=>{
 function addScore(pts, el, plus){
   state.score += pts;
   scoreEl.textContent = state.score;
-  floatText((pts>0?"+":"")+pts, el, plus);
+  floatText(el, plus);           // símbolo sin número: oculta cuánto vale cada golpe
   updateProgress();
 }
 
-function floatText(txt, el, plus){
+function floatText(el, plus){
   const r=el.getBoundingClientRect();
   const f=document.createElement("div");
   f.className="float "+(plus?"plus":"minus");
-  f.textContent=txt;
+  f.textContent = plus ? "+" : "✕";
   f.style.left=(r.left+r.width/2-14)+"px";
   f.style.top=(r.top+r.height/2-14)+"px";
   document.body.appendChild(f);
@@ -395,9 +417,28 @@ function tick(){
   timerEl.classList.toggle("urgent", s<=10);
 }
 
+/* ---------------- Alineación de la casa ----------------
+   Cada sesión (cada regreso al menú) se vuelve a tirar.
+   Para migrar a backend: reemplaza el Math.random por un fetch
+   a tu endpoint que devuelva {aligned:true|false}.            */
+function rollAlignment(){
+  session.aligned = Math.floor(Math.random()*CONFIG.alignRate) === 0;
+}
+
+function enterMenu(){
+  state.running=false;
+  clearTimeout(spawnTimer); clearInterval(clockTimer);
+  slotEls.forEach(s=>{ if(s.firstChild) s.firstChild.remove(); });
+  endScreen.classList.add("hidden");
+  startScreen.classList.remove("hidden");
+  rollAlignment();          // nueva sesión -> nueva tirada
+}
+
 function startGame(){
   initAudio();
   state.score=0; state.timeLeft=CONFIG.duration; state.running=true;
+  // Puntos efectivos del hacker según si la sesión está alineada
+  state.hackerPts = session.aligned ? CONFIG.points.hacker : CONFIG.points.hackerBlocked;
   scoreEl.textContent="0"; timerEl.classList.remove("urgent");
   timerEl.textContent="0:"+CONFIG.duration;
   updateProgress();
@@ -417,7 +458,8 @@ function endGame(){
   const won = state.score>=CONFIG.targetScore;
   won ? Sound.win() : Sound.lose();
   state.best=Math.max(state.best,state.score);
-  if(CONFIG.debug) console.log("Puntaje final:", state.score, won?"(GANÓ)":"(perdió)");
+  if(CONFIG.debug) console.log("Puntaje final:", state.score, won?"(GANÓ)":"(perdió)",
+                              "· sesión", session.aligned?"ALINEADA":"bloqueada");
 
   $("#verdict").textContent = won ? "¡GANASTE!" : "CASI…";
   $("#verdict").className = "verdict "+(won?"win":"lose");
@@ -430,7 +472,26 @@ function endGame(){
 }
 
 $("#startBtn").addEventListener("click", startGame);
-$("#againBtn").addEventListener("click", startGame);
+$("#againBtn").addEventListener("click", enterMenu);
+
+/* ---- Señal discreta para el operador ----------------------------
+   Mantén PULSADO el título ~0.65s en el menú: aparece brevemente
+   arriba a la derecha un ● verde si la sesión es ALINEADA (ganable)
+   o un · gris si está bloqueada. El jugador no lo activa al tocar JUGAR.
+   Nota: al ser código de cliente, es legible en el fuente.          */
+const titleEl=document.querySelector("#startScreen .title");
+const tellEl=$("#tell");
+let holdTimer=null;
+titleEl.addEventListener("pointerdown", ()=>{
+  holdTimer=setTimeout(()=>{
+    tellEl.textContent = session.aligned ? "●" : "·";
+    tellEl.style.color = session.aligned ? "var(--consultor)" : "#3a3a63";
+    tellEl.classList.add("show");
+    setTimeout(()=>tellEl.classList.remove("show"), 1300);
+  }, 650);
+});
+["pointerup","pointerleave","pointercancel"].forEach(ev=>
+  titleEl.addEventListener(ev, ()=>clearTimeout(holdTimer)));
 
 /* ---------------- iOS: refuerzo anti-zoom ----------------
    Safari en iPhone ignora user-scalable=no, así que además de
@@ -444,6 +505,7 @@ board.addEventListener("touchend", e=>{
 document.addEventListener("gesturestart", e=>e.preventDefault()); // sin pinch-zoom
 
 buildBoard();
+rollAlignment();   // alinea (o no) la primera sesión del menú
 </script>
 </body>
 </html>
